@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function HomePage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -47,6 +48,12 @@ export default function HomePage() {
     <h1 className="text-4xl font-extrabold text-gray-800 mb-6 flex items-center gap-2">
       Skill Gap Analyzer <span>🧠</span>
     </h1>
+
+    <Link href="/dashboard">
+      <button className="mb-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+        Go to Dashboard
+      </button>
+    </Link>
 
     <form
       onSubmit={handleSubmit}
