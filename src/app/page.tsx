@@ -9,11 +9,21 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
   // Fetch all users
-  const fetchUsers = async () => {
+  // Fetch all users
+// Fetch all users
+const fetchUsers = async () => {
+  try {
     const res = await fetch('/api/users');
     const data = await res.json();
-    setUsers(data);
-  };
+    console.log("Fetched users:", data);
+    setUsers(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    setUsers([]);
+  }
+};
+
+
 
   useEffect(() => {
     fetchUsers();
