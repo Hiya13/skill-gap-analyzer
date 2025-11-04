@@ -1,122 +1,103 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: '', email: '', skills: '' });
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [skills, setSkills] = useState('');
+  const [showSignup, setShowSignup] = useState(false);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  // Fetch all users
-  // Fetch all users
-// Fetch all users
-const fetchUsers = async () => {
-  try {
-    const res = await fetch('/api/users');
-    const data = await res.json();
-    console.log("Fetched users:", data);
-    setUsers(Array.isArray(data) ? data : []);
-  } catch (err) {
-    console.error("Error fetching users:", err);
-    setUsers([]);
-  }
-};
-
-
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Handle form submit
   const handleSubmit = async (e: any) => {
-  e.preventDefault();
-  setLoading(true);
+    e.preventDefault();
+    setLoading(true);
 
-  const res = await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(form),
-  });
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email: showSignup ? email : undefined,
+          skills: showSignup ? skills : undefined,
+        }),
+      });
 
-  const data = await res.json();
+      const data = await res.json();
 
-  if (!res.ok) {
-    alert(`Error adding user: ${data.error}`);
-  } else {
-    setForm({ name: '', email: '', skills: '' });
-    fetchUsers(); // refresh list
-  }
-
-  setLoading(false);
-};
-
+      if (!res.ok) {
+        // if new user, show signup fields
+        if (data.error?.includes('signup')) {
+          setShowSignup(true);
+        } else {
+          alert(data.error || 'Something went wrong');
+        }
+      } else {
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Server error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-  <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-100">
-    <h1 className="text-4xl font-extrabold text-gray-800 mb-6 flex items-center gap-2">
-      Skill Gap Analyzer <span>🧠</span>
-    </h1>
+    <main className="flex flex-col items-center justify-center min-h-screen bg-gray-100 px-6">
+      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
+          Skill Gap Analyzer 🧠
+        </h1>
 
-    <Link href="/dashboard">
-      <button className="mb-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-        Go to Dashboard
-      </button>
-    </Link>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-500"
+            required
+          />
 
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md border border-gray-200"
-    >
-      <input
-        type="text"
-        placeholder="Name"
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-800 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-      />
-      <input
-        type="email"
-        placeholder="Email"
-        value={form.email}
-        onChange={(e) => setForm({ ...form, email: e.target.value })}
-        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-800 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-      />
-      <input
-        type="text"
-        placeholder="Skills (comma separated)"
-        value={form.skills}
-        onChange={(e) => setForm({ ...form, skills: e.target.value })}
-        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-800 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-      />
+          {showSignup && (
+            <>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Enter your skills (comma separated)"
+                value={skills}
+                onChange={(e) => setSkills(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </>
+          )}
 
-      <button
-        type="submit"
-        className="bg-blue-600 text-white py-2 px-4 rounded w-full font-semibold hover:bg-blue-700 transition"
-        disabled={loading}
-      >
-        {loading ? 'Adding...' : 'Add User'}
-      </button>
-    </form>
-
-    <div className="mt-10 w-full max-w-md">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-3">Users List</h2>
-      {users.length === 0 ? (
-        <p className="text-gray-600">No users yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {users.map((u) => (
-            <li key={u.id} className="bg-white p-3 rounded shadow-sm border border-gray-100">
-              <strong className="text-gray-800">{u.name}</strong> —{' '}
-              <span className="text-gray-700">{u.email}</span>
-              <div className="text-sm text-gray-600 mt-1">{u.skills}</div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  </main>
-);
-
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+            disabled={loading}
+          >
+            {loading
+              ? 'Processing...'
+              : showSignup
+              ? 'Sign Up'
+              : 'Continue'}
+          </button>
+        </form>
+      </div>
+    </main>
+  );
 }

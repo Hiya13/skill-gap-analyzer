@@ -1,46 +1,54 @@
-import { createClient } from '@supabase/supabase-js';
-
-
+import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET — fetch all users
-export async function GET() {
-  const { data, error } = await supabase.from('users').select('*');
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  return new Response(JSON.stringify(data), { status: 200 });
-}
-
-// POST — add a new user
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { name, email, skills } = body;
 
-    if (!name || !email)
-      return new Response(JSON.stringify({ error: 'Name and email are required' }), { status: 400 });
+    // 1️⃣ Check if user exists by name
+    const { data: existingUser, error: fetchError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("name", name)
+      .single();
 
-    // Convert comma-separated string to array
-    const skillsArray = skills ? skills.split(',').map(s => s.trim()) : [];
+    if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
 
-    const { data, error } = await supabase
-      .from('users')
-      .insert([{ name, email, skills: skillsArray }])
-      .select();
-
-    if (error) {
-      console.error('Supabase insert error:', error);
-      return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    // 2️⃣ If user exists → login
+    if (existingUser) {
+      return NextResponse.json({ user: existingUser, isNew: false });
     }
 
-    return new Response(JSON.stringify(data[0]), { status: 201 });
+    // 3️⃣ If no user found and email/skills not provided → ask frontend to show signup
+    if (!email || !skills) {
+      return NextResponse.json(
+        { error: "signup: Please provide email and skills to sign up" },
+        { status: 400 }
+      );
+    }
+
+    const skillsArray = typeof skills === "string"
+  ? skills.split(",").map((s) => s.trim())
+  : skills;
+
+const { data: newUser, error: insertError } = await supabase
+  .from("users")
+  .insert([{ name, email, skills: skillsArray }])
+  .select()
+  .single();
+
+
+    if (insertError) throw insertError;
+
+    return NextResponse.json({ user: newUser, isNew: true });
   } catch (err: any) {
-    console.error('POST route error:', err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    console.error("Error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-
-

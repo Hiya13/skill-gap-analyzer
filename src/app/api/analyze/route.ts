@@ -1,70 +1,43 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    console.log("Request body:", body);
-    console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    const { userSkills, target } = await req.json();
 
-    const { userId, targetSkills } = body;
-
-    if (!Array.isArray(targetSkills)) {
+    if (!userSkills || !target) {
       return NextResponse.json(
-        { error: "Invalid request. 'targetSkills' must be an array." },
+        { error: "Missing required fields: userSkills or target" },
         { status: 400 }
       );
     }
 
-    let user;
+    const skillList = Array.isArray(userSkills)
+      ? userSkills.join(", ")
+      : userSkills;
 
-    if (userId) {
-      // Fetch user by UUID
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, name, email, skills")
-        .eq("id", userId)
-        .single();
+    const prompt = `
+You are a career coach.
+The user currently has these skills: ${skillList}.
+They want to apply for "${target}".
+List 5–8 missing or important additional skills they should learn.
+Just return the skill names separated by commas, no explanations.
+`;
 
-      if (error) console.log("Supabase error:", error?.message);
-      user = data;
-    }
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    if (!user) {
-      // If userId missing or invalid, fetch first user for testing
-      const { data } = await supabase
-        .from("users")
-        .select("id, name, email, skills")
-        .limit(1)
-        .single();
-      user = data;
-    }
+    const missingSkills = text
+      .split(/,|\n|-/)
+      .map((s) => s.trim())
+      .filter((s) => s && s.length < 50);
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const userSkills: string[] = user.skills || [];
-    const missingSkills = targetSkills.filter(
-      (skill: string) => !userSkills.includes(skill)
-    );
-
-    return NextResponse.json({
-      user: user.name,
-      existingSkills: userSkills,
-      missingSkills,
-    });
-  } catch (err) {
-    console.error("Error in /api/analyze:", err);
-    return NextResponse.json(
-      { error: "Something went wrong" },
-      { status: 500 }
-    );
+    return NextResponse.json({ missingSkills });
+  } catch (err: any) {
+    console.error("Gemini API Error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
