@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabaseClient";
+
 import { useEffect, useState } from "react";
 
 type UserData = {
@@ -17,16 +20,35 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
 
   // ✅ Load user from localStorage
+  const router = useRouter();
+
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setUser(parsed);
-    } else {
-      setError("No user found. Please log in again.");
+    async function checkAuth() {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session) {
+        router.push("/login"); // Redirect to login if not authenticated
+        return;
+      }
+
+      // Load user data from session or metadata
+      const currentUser = {
+        id: session.user.id,
+        name: session.user.user_metadata?.name || "User",
+        email: session.user.email,
+        skills: session.user.user_metadata?.skills || [],
+      };
+
+      setUser(currentUser);
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+
+    checkAuth();
+  }, [router]);
+
 
   // 🧠 Function to analyze skills (we’ll connect AI API next)
   const handleAnalyze = async () => {
@@ -135,6 +157,16 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      <button
+        onClick={async () => {
+          await supabase.auth.signOut();
+          router.push("/login");
+        }}
+        className="mt-6 bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600"
+      >
+        Log Out
+      </button>
+
     </div>
   );
 }

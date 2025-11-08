@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +6,7 @@ export async function POST(req: Request) {
 
     if (!userSkills || !target) {
       return NextResponse.json(
-        { error: "Missing required fields: userSkills or target" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -21,23 +18,37 @@ export async function POST(req: Request) {
     const prompt = `
 You are a career coach.
 The user currently has these skills: ${skillList}.
-They want to apply for "${target}".
+They are preparing for the company or role: "${target}".
 List 5–8 missing or important additional skills they should learn.
-Just return the skill names separated by commas, no explanations.
+Return only the skill names, comma-separated.
 `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo", // You can also try: "mistralai/mixtral-8x7b"
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
 
-    const missingSkills = text
+    const data = await res.json();
+    const output =
+      data?.choices?.[0]?.message?.content?.trim() ||
+      "No result from model.";
+
+    const missingSkills = output
       .split(/,|\n|-/)
-      .map((s) => s.trim())
-      .filter((s) => s && s.length < 50);
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+      .slice(0, 8);
 
     return NextResponse.json({ missingSkills });
   } catch (err: any) {
-    console.error("Gemini API Error:", err);
+    console.error("OpenRouter API Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
